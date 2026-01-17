@@ -1,30 +1,45 @@
 ---
-title: "Final_Project"
+title: "Forecasting-Brazils-Freshwater-Resources-with-Predictive-Modeling"
 author: "Bryan Z"
 date: "2023-11-25"
 output:  
-  bookdown::html_document2:
+  html_document:
     toc: true
-    fig_caption: true
+    toc_float: true
+    toc_depth: 3
+    theme: cosmo
+    highlight: tango
+    code_folding: show
+    fig_width: 10
+    fig_height: 6
 ---
 
-```{r echo=FALSE, warning=FALSE, message=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-library(fpp3)
-library(dplyr)
-library(tidyr)
-library(tidyxl)
-library(tsibble)
-library(tsibbledata)
-library(fable)
-library(tidyverse)
-library(lubridate)
-library(ggplot2)
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = 'center',
+  fig.width = 10,
+  fig.height = 6
+)
+
+# Close any open devices
+graphics.off()
+
+# Time series packages
+library(fpp3)        
 library(forecast)
-library(fabletools)
-library(feasts)
 library(urca)
-library(ldsr)
+
+# Data manipulation
+library(tidyverse)
+
+# Specialized
+library(tidyxl)
+library(tsibbledata)
+library(fabletools)
+
 ```
 
 ## Introduction 
@@ -41,29 +56,27 @@ In order to conduct the forecast, James needs to do some feature engineering for
 
 ### Feature Engineering for Renewable Internal Freshwater Resources (cubic meters)
 
-```{r, echo=FALSE}
-#Population Data
-population = read.csv('world-population.csv', header = TRUE, skip = 4)
-#view(population) 
-#print(names(population))
-view(population)
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
+# Population Data
+population <- read.csv('world-population.csv', header = TRUE, skip = 4)
 
 population_long <- population |>
-  pivot_longer(cols=-c('Country.Name', 'Country.Code',	'Indicator.Name',	'Indicator.Code'),
-               names_to = "Year",
-               values_to = "Population") |>
+  pivot_longer(
+    cols = -c('Country.Name', 'Country.Code', 'Indicator.Name', 'Indicator.Code'),
+    names_to = "Year",
+    values_to = "Population"
+  ) |>
   mutate(Year = as.integer(str_remove(Year, "X")))
-view(population_long)
 
 filtered_population_long <- population_long |>
   filter(Country.Name == "Brazil" & Year >= 1989 & Year <= 2019) |>
   select(Year, Population)
-# filtered_population_long
 
-# str(filtered_population_long) 
+# view(filtered_population_long)
+
 ```
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 #Renewable Freshwater Data
 renew_h2o = read.csv('renewable-water-resources-per-capita.csv', header = TRUE)
 #view(renew_h2o) 
@@ -76,7 +89,7 @@ filtered_renew_h2o <- renew_h2o |>
 #str(filtered_renew_h2o)
 ```
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 #Pure Feature Engineering
 joined_data <- left_join(filtered_population_long, filtered_renew_h2o, by = "Year")
 #joined_data
@@ -86,13 +99,33 @@ renew_h2o_clean <- joined_data %>%
            Renewable.internal.freshwater.resources.per.capita..cubic.meters. / Population) |>
   select(-Population, -Renewable.internal.freshwater.resources.per.capita..cubic.meters.)
 
+# Create tsibble
 ttsibble_data <- as_tsibble(renew_h2o_clean, index = Year)
-ttsibble_data |> autoplot() +
+
+# Display data
+knitr::kable(head(ttsibble_data, 10), caption = "Renewable Freshwater Resources (First 10 Years)")
+```
+
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
+# Plot using ggplot2 
+ttsibble_data %>%
+  as.data.frame() %>%
+  ggplot(aes(x = Year, y = Renewable.internal.freshwater.resources..cubic.meters)) +
+  geom_line(color = "#2C3E50", size = 1.2) +
+  geom_point(color = "#E74C3C", size = 2.5) +
+  scale_x_continuous(breaks = seq(1989, 2019, by = 5)) +
   ggtitle("Renewable Internal Freshwater Resources Over Time") +
   xlab("Year") +
-  ylab("Renewable Internal Freshwater Resources (cubic meters)")
-ttsibble_data
+  ylab("Renewable Internal Freshwater Resources (cubic meters)") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.title = element_text(size = 12),
+    panel.grid.minor = element_blank()
+  )
+```
 
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 # Calculate the annual percentage decrease
 initial_count <- 0.0002584340
 final_count <- 0.0001262151
@@ -100,7 +133,8 @@ initial_year <- 1989
 final_year <- 2019
 
 annual_percentage_decrease <- ((final_count / initial_count)^(1 / (final_year - initial_year)) - 1) * -100
-#print(paste("Annual Percentage Decrease: ", round(annual_percentage_decrease, 2), "%"))
+
+cat("Annual Percentage Decrease:", round(annual_percentage_decrease, 2), "%\n")
 
 ```
 
@@ -112,7 +146,7 @@ The "Number of Cattle" dataset was extracted from "Our World in Data" and it ind
 
 ### Annual Cattle Number 
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 cattle_heads = read.csv('cattle-livestock-count-heads.csv', header = TRUE)
 #view(cattle_heads)
 
@@ -143,7 +177,7 @@ The other time series,"Annual freshwater withdrawals", refers to total water wit
 
 ### Annual Freshwater Withdrawals
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 fresh_h2o = read.csv('annual-freshwater-withdrawals.csv', header = TRUE)
 #view(fresh_h2o)
 
@@ -174,7 +208,7 @@ Down below, the dataset that James creates with all the time series for his fore
 
 ## Joining Variables
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 ultimate_joined_data <- left_join(renew_h2o_clean, filtered_cattle_heads, by = "Year")
 
 #Creating the three datasets into a joined one
@@ -194,19 +228,19 @@ To start off, he checks for the time series if they are stationary and finds out
 
 #### Stationarity 
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 ur.kpss(diff(diff(ttsibble_data$Renewable.internal.freshwater.resources..cubic.meters,lag = 1),lag = 1)) |> summary()
 ```
 
 The test statistic (0.9723) is less than the critical values at all significance levels. Therefore, he fails to reject the null hypothesis stating that the time series is stationary, or, in other words, he accepts that the time series is stationary.
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 ur.kpss(diff(diff(ttsibble_data$Cattle...00000866....Stocks...005111....animals,lag = 1),lag = 1)) |> summary()
 ```
 
 The test statistic (0.045) is less than the critical values at all significance levels, which again, he fails to reject the null hypothesis indicating that the time series is stationary, or, in other words, he accepts that the time series is stationary.
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 ur.kpss(diff(diff(ttsibble_data$Annual.freshwater.withdrawals..total..billion.cubic.meters.,lag = 1),lag = 1)) |> summary()
 ```
 
@@ -216,7 +250,7 @@ Now, it is time for James to fit the models and create forecasts for the future 
 
 #### Model #1
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 #Dynamic Regression with ARIMA Errors for Renewable Internal Freshwater and Cattle Number
 fit_ren_fresh<- ttsibble_data |>
   model(ARIMA(Renewable.internal.freshwater.resources..cubic.meters ~ Cattle...00000866....Stocks...005111....animals)) |>
@@ -227,7 +261,7 @@ James modeled the time series "Renewable.internal.freshwater.resources..cubic.me
 
 James, then, proceeded to evaluate the residuals as follows to provide insights into the model's performance.
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 fit_ren_fresh |> augment() |>
   autoplot(.fitted,color = 'blue') +
   autolayer(ttsibble_data)+
@@ -247,7 +281,7 @@ He founded that the model residuals have a normal distribution with mean of 0 an
 
 ##### 10-Year Projection for Renewable Internal Freshwater Resources based on Cattle Numbers 
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 ##Forecast the next 10 years of data using the previous model
 ren_fresh_arima <- ttsibble_data |>
   model(ARIMA(box_cox(Renewable.internal.freshwater.resources..cubic.meters,-0.8999)))
@@ -261,7 +295,7 @@ ren_fresh_arima |>
 
 James generated the 10-year forecast for "Renewable Internal Freshwater Resources" using an ARIMA model. He had to use a Box-Cox transformation with a lambda value of -0.8999 to stabilize variance and achieve a more normally distributed series. 
 
-```{r}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 ren_fresh_arima |>
   forecast(h = "10 years") |>
   autoplot(ttsibble_data, level = NULL) + labs(title = "10 years Forecast") +
@@ -274,7 +308,7 @@ James can now say that it is forecasted a gradual decrease in "Renewable Interna
 
 #### Model #2
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 #Dynamic Regression with ARIMA Errors for renewable internal freshwater vs annual freshwater withdrawals 
 fit_dyn_withdrawals = ttsibble_data |>
   model(ARIMA(Renewable.internal.freshwater.resources..cubic.meters ~ Annual.freshwater.withdrawals..total..billion.cubic.meters.)) |>
@@ -285,7 +319,7 @@ James modeled the time series "Renewable.internal.freshwater.resources..cubic.me
 
 James, then, proceeded to evaluate the residuals as follows to provide insights into the model's performance.
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 fit_dyn_withdrawals |> augment() |>
   autoplot(.fitted,color = 'blue') +
   autolayer(ttsibble_data)+
@@ -307,7 +341,7 @@ He founded that the model residuals have a normal distribution skewed to the lef
 
 ##### 10-Year Projection for Renewable Internal Freshwater Resources based on Cattle Numbers 
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 # ##Forecast the next 10 years of data using the previous model 
 fit_dyn_withdrawals <- ttsibble_data |>
   model(ARIMA(box_cox(Renewable.internal.freshwater.resources..cubic.meters,-0.5)))
@@ -320,7 +354,7 @@ fit_dyn_withdrawals |>
 
 James generated the 10-year forecast for "Renewable Internal Freshwater Resources" using an ARIMA model. He had to use a Box-Cox transformation with a lambda value of -0.5 to stabilize variance and achieve a more normally distributed series. 
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 fit_dyn_withdrawals |>
   forecast(h = "10 years") |>
   autoplot(ttsibble_data, level = NULL) + labs(title = "10 years Forecast") +
@@ -337,7 +371,7 @@ James can now say that it is forecasted a gradual decrease in "Renewable Interna
 
 James wonders what will happen if climate action efforts increases in Brazil over the years since CO2 levels are to be reduced. He creates forecasts for 2%, 5% and 10% decrease in cattle numbers for the next 3 years and shows the results down below: 
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 # Calculating the numbers for the next 5 years with an increase of 3%
 initial_value <- 215008960
 percentage_increase <- 0.03
@@ -366,7 +400,7 @@ fc
 
 James learns that if the cattle numbers increase by 3% every year in the future, then the renewable freshwater will decrease in a great extent.
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 # Calculating the numbers for the next 5 years with an decrease of 3%
 initial_value <- 215008960
 percentage_decrease <- 0.03
@@ -400,7 +434,7 @@ James learns that if the cattle numbers decrease by 3% every year in the future,
 
 At the same time, he wonders what would happen if the people in Brazil reduce their water withdrawals or what would happen if there is not any reductions instead. He creates a 3% forecast yearly increase and decrease for the following 6 years, which is shown next:
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 # Calculating the numbers for the next 5 years with an increase of 3%
 old_value_2019 <- 70430000000
 percentage_increase <- 0.03
@@ -430,7 +464,7 @@ fb
 
 James learns that if the freshwater withdrawals increase by 3% every year in the future, then the renewable freshwater will decrease, as expected.
 
-```{r, echo=FALSE}
+```{r, include=TRUE, eval=TRUE, echo=TRUE}
 # Calculating the numbers for the next 5 years with an decrease of 3%
 old_value_2019 <- 70430000000
 percentage_decrease <- 0.03
